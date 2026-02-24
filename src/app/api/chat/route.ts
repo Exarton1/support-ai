@@ -107,6 +107,22 @@ try {
     console.error("Error extracting text from Gemini result", e, genResult)
 }
 
+// Normalize text when SDK returns structured object
+if (text && typeof text === "object") {
+    try {
+        // common shape: { parts: [{ text: '...' }], role: 'model' }
+        if (Array.isArray(text.parts)) {
+            text = text.parts.map((p: any) => p?.text || p?.content || JSON.stringify(p)).join("\n")
+        } else {
+            // try to stringify
+            text = JSON.stringify(text)
+        }
+    } catch (e) {
+        console.error("Failed to normalize AI text object", e, text)
+        text = String(text)
+    }
+}
+
 if (!text) {
     console.warn("Gemini returned no text", genResult)
     const resp = NextResponse.json({ message: "AI returned no text", raw: genResult }, { status: 502 })
