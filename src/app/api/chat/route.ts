@@ -3,14 +3,23 @@ import { SETTINGS_TABLE } from "@/model/settings.model";
 import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 
+const addCors = (res: NextResponse) => {
+    // For testing allow all origins. In production set a specific origin.
+    res.headers.set("Access-Control-Allow-Origin", "*")
+    res.headers.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+    res.headers.set("Access-Control-Allow-Headers", "Content-Type")
+    return res
+}
+
 export async function POST(req: NextRequest) {
     try {
         const { message, ownerId } = await req.json()
         if (!message || !ownerId) {
-            return NextResponse.json(
+            const r = NextResponse.json(
                 { message: "message and owner id is required" },
                 { status: 400 }
             )
+            return addCors(r)
         }
 
         const { data: setting, error: dbErr } = await supabase
@@ -24,16 +33,14 @@ export async function POST(req: NextRequest) {
                 { message: `database unavailable: ${dbErr.message}` },
                 { status: 503 }
             )
-            response.headers.set("Access-Control-Allow-Origin", "*")
-            response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS")
-            response.headers.set("Access-Control-Allow-Headers", "Content-Type")
-            return response
+            return addCors(response)
         }
         if (!setting) {
-            return NextResponse.json(
+            const r = NextResponse.json(
                 { message: "chat bot is not configured yet." },
                 { status: 400 }
             )
+            return addCors(r)
         }
 
         const KNOWLEDGE=`
@@ -68,12 +75,9 @@ ANSWER
 `;
 
 const apiKey = process.env.GEMINI_API_KEY
-if (!apiKey) {
+    if (!apiKey) {
     const resp = NextResponse.json({ message: "Gemini API key not configured" }, { status: 500 })
-    resp.headers.set("Access-Control-Allow-Origin", "*")
-    resp.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS")
-    resp.headers.set("Access-Control-Allow-Headers", "Content-Type")
-    return resp
+    return addCors(resp)
 }
 
 const ai = new GoogleGenAI({ apiKey })
@@ -83,10 +87,7 @@ try {
 } catch (genErr: any) {
     console.error("Gemini generate error:", genErr)
     const resp = NextResponse.json({ message: `AI generation error: ${genErr?.message || genErr}` }, { status: 500 })
-    resp.headers.set("Access-Control-Allow-Origin", "*")
-    resp.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS")
-    resp.headers.set("Access-Control-Allow-Headers", "Content-Type")
-    return resp
+    return addCors(resp)
 }
 
 // Inspect common response shapes and pick the best candidate
@@ -126,37 +127,22 @@ if (text && typeof text === "object") {
 if (!text) {
     console.warn("Gemini returned no text", genResult)
     const resp = NextResponse.json({ message: "AI returned no text", raw: genResult }, { status: 502 })
-    resp.headers.set("Access-Control-Allow-Origin", "*")
-    resp.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS")
-    resp.headers.set("Access-Control-Allow-Headers", "Content-Type")
-    return resp
+    return addCors(resp)
 }
 
 const response = NextResponse.json({ answer: text })
-response.headers.set("Access-Control-Allow-Origin", "*")
-response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS")
-response.headers.set("Access-Control-Allow-Headers", "Content-Type")
-return response
+return addCors(response)
 
     } catch (error) {
- const response= NextResponse.json(
+    const response= NextResponse.json(
                 { message:`chat error ${error}` },
                 { status: 500 }
             )
-  response.headers.set("Access-Control-Allow-Origin", "*");
-    response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    response.headers.set("Access-Control-Allow-Headers", "Content-Type");
-    return response
+    return addCors(response)
     }
 }
 
 export const OPTIONS=async ()=>{
-   return NextResponse.json(null,{
-status:201,
-headers:{
-     "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-}
-   })
+     const res = NextResponse.json(null, { status: 204 })
+     return addCors(res)
 }
