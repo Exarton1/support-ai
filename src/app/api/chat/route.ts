@@ -67,16 +67,59 @@ ANSWER
 --------------------
 `;
 
-const ai = new GoogleGenAI({apiKey:process.env.GEMINI_API_KEY});
- const res = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: prompt,
-  });
+const apiKey = process.env.GEMINI_API_KEY
+if (!apiKey) {
+    const resp = NextResponse.json({ message: "Gemini API key not configured" }, { status: 500 })
+    resp.headers.set("Access-Control-Allow-Origin", "*")
+    resp.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS")
+    resp.headers.set("Access-Control-Allow-Headers", "Content-Type")
+    return resp
+}
 
-const response= NextResponse.json(res.text)
- response.headers.set("Access-Control-Allow-Origin", "*");
-    response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    response.headers.set("Access-Control-Allow-Headers", "Content-Type");
+const ai = new GoogleGenAI({ apiKey })
+let genResult: any
+try {
+    genResult = await ai.models.generateContent({ model: "gemini-2.5-flash", contents: prompt })
+} catch (genErr: any) {
+    console.error("Gemini generate error:", genErr)
+    const resp = NextResponse.json({ message: `AI generation error: ${genErr?.message || genErr}` }, { status: 500 })
+    resp.headers.set("Access-Control-Allow-Origin", "*")
+    resp.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS")
+    resp.headers.set("Access-Control-Allow-Headers", "Content-Type")
+    return resp
+}
+
+// Inspect common response shapes and pick the best candidate
+let text: string | undefined
+try {
+    if (typeof genResult === "string") text = genResult
+    if (!text && genResult?.output_text) text = genResult.output_text
+    if (!text && Array.isArray(genResult?.candidates) && genResult.candidates[0]) text = genResult.candidates[0].content
+    if (!text && Array.isArray(genResult?.output) && genResult.output[0]?.content) {
+        const content = genResult.output[0].content
+        if (typeof content === "string") text = content
+        else if (Array.isArray(content)) {
+            const first = content.find((c: any) => typeof c.text === "string")
+            if (first) text = first.text
+        }
+    }
+} catch (e) {
+    console.error("Error extracting text from Gemini result", e, genResult)
+}
+
+if (!text) {
+    console.warn("Gemini returned no text", genResult)
+    const resp = NextResponse.json({ message: "AI returned no text", raw: genResult }, { status: 502 })
+    resp.headers.set("Access-Control-Allow-Origin", "*")
+    resp.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS")
+    resp.headers.set("Access-Control-Allow-Headers", "Content-Type")
+    return resp
+}
+
+const response = NextResponse.json({ answer: text })
+response.headers.set("Access-Control-Allow-Origin", "*")
+response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS")
+response.headers.set("Access-Control-Allow-Headers", "Content-Type")
 return response
 
     } catch (error) {
