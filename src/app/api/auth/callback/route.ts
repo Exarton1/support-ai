@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(req:NextRequest) {
     const {searchParams}=new URL(req.url)
     const code=searchParams.get("code")
-     const redirectUri=`${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback`
+     const redirectUri=`https://support-ai-black.vercel.app/api/auth/callback`
     if(!code){
         return NextResponse.json({message:"code is not found"},{status:400})
     }
