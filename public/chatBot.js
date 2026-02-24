@@ -1,6 +1,8 @@
 (function () {
 
-    const api_Url = "https://support-ai-tau.vercel.app/api/chat"
+    // Allow overriding the API URL via the embedding script tag attribute `data-api-url`.
+    // Default to the deployed project URL.
+    const api_Url = scriptTag.getAttribute("data-api-url") || "https://support-ai-black.vercel.app/api/chat"
 
     const scriptTag = document.currentScript;
     const ownerId = scriptTag.getAttribute("data-owner-id")
@@ -157,23 +159,30 @@ sendBtn.onclick=async ()=>{
     messageArea.appendChild(typing)
     messageArea.scrollTop=messageArea.scrollHeight
     try {
-    const response=await fetch(api_Url,{
-        method:"POST",
-        headers:{"content-Type":"application/json"},
-        body:JSON.stringify({
-            ownerId,message:text
+        const response = await fetch(api_Url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ownerId, message: text })
         })
-    })
 
-    const data=await response.json()
-    messageArea.removeChild(typing)
-    addMessage(data|| "something went wrong","ai")
+        let data = null
+        try { data = await response.json() } catch (e) { /* ignore invalid json */ }
 
-} catch (error) {
-    console.log(error)
-    messageArea.removeChild(typing)
-    addMessage(data|| "something went wrong","ai")
-}
+        messageArea.removeChild(typing)
+
+        if (!response.ok) {
+            const errMsg = (data && data.message) ? data.message : 'Chat API error'
+            addMessage(errMsg, 'ai')
+        } else {
+            const answer = data && (data.answer || data.text || data)
+            addMessage(answer || 'No answer from AI', 'ai')
+        }
+
+    } catch (error) {
+        console.error(error)
+        try { messageArea.removeChild(typing) } catch (e) {}
+        addMessage('Something went wrong connecting to chat service', 'ai')
+    }
 }
 
 
